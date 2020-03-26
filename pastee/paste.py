@@ -5,9 +5,9 @@ import json
 
 
 class MainPaste:
-    __slots__ = {"sucess", "id", "encrypted", "description",
+    __slots__ = ("sucess", "id", "encrypted", "description",
                  "views", "created_at", "expires_at",
-                 "sections"}
+                 "sections")
 
     def __init__(self, data: dict):
         self.raw = data

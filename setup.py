@@ -1,12 +1,13 @@
 import setuptools
 import re
+import os
 
 long_description = ''
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 version = ''
-with open('fortnitepy/__init__.py') as f:
+with open('pastee/__init__.py') as f:
     version = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', f.read(), re.MULTILINE).group(1) # noqa
 
 requirements = ['aiohttp>=3.3']
@@ -22,9 +23,24 @@ extras_require = {
     ]
 }
 
+
+class CleanCommand(setuptools.Command):
+    """Custom clean command to tidy up the project root."""
+    user_options = []
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        os.system(r'del .\build .\dist .\*.pyc .\*.tgz .\*.egg-info')
+
+
 setuptools.setup(
-    name="paste.py",
-    url="https://github.com/creator1372/paste.py",
+    name="pastee",
+    url="https://github.com/creator1372/pastee",
     version=version,
     author="creator1372",
     description="Library for using Paste.ee's api",
@@ -35,6 +51,9 @@ setuptools.setup(
     extras_require=extras_require,
     packages=setuptools.find_packages(),
     python_requires='>=3.5.3',
+    cmdclass={
+        "clean": CleanCommand
+    },
     classifiers=[
         'License :: OSI Approved :: MIT License',
         'Intended Audience :: Developers',
