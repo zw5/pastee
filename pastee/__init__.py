@@ -1,6 +1,6 @@
 # flake8: noqa
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 import asyncio
 from sys import platform, version_info

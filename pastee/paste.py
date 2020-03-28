@@ -2,12 +2,23 @@ from typing import Dict, Optional, List, Union
 import aiohttp
 import datetime
 import json
+import base64
+import hashlib
+from Crypto.Cipher import AES
+from Crypto import Random
+
+BLOCK_SIZE = 16
+
+
+def pad(text: str):
+    return text + (BLOCK_SIZE - len(text) % BLOCK_SIZE) * chr(BLOCK_SIZE - len(text) % BLOCK_SIZE) # noqa
+
+
+def unpad(text: str):
+    return text[:-ord(text[len(text) - 1:])]
 
 
 class MainPaste:
-    __slots__ = ("sucess", "id", "encrypted", "description",
-                 "views", "created_at", "expires_at",
-                 "sections")
 
     def __init__(self, data: dict):
         self.raw = data
@@ -46,7 +57,6 @@ class MainPaste:
 
 
 class Syntax:
-    __slots__ = ("id", "short", "name")
 
     def __init__(self, context):
         self.raw = context
@@ -68,7 +78,6 @@ class Syntax:
 
 
 class PasteSection:
-    __slots__ = ("name", "syntax", "contents")
 
     def __init__(self, context: dict):
         self.raw = context
@@ -90,7 +99,6 @@ class PasteSection:
 
 
 class PasteFormat:
-    __slots__ = ("name", "syntax", "contents")
 
     def __init__(self, contents: str,
                  name: Optional[str] = "Paste",
@@ -113,8 +121,6 @@ class PasteFormat:
 
 
 class Paste:
-    __slots__ = ("id", "description", "created_at",
-                 "sections")
 
     def __init__(self, context: dict):
         self.raw = context
@@ -127,9 +133,6 @@ class Paste:
 
 
 class PasteResults:
-    __slots__ = ("total", "per_page", "current_page",
-                 "last_page", "next_page_url", "from",
-                 "to", "data")
 
     def __init__(self, paste: dict):
         self.raw = paste
@@ -210,6 +213,20 @@ class Client:
         return await PasteResults(
             self.get(f"/pastes?perpage={per_page}&page={page}", **params)
             )
+
+    def encrypt(self, raw_text: str, secret: str):
+        private_key = hashlib.sha256(secret.encode("utf-8")).digest()
+        raw = pad(raw_text)
+        iv = Random.new().read(AES.block_size)
+        cipher = AES.new(private_key, AES.MODE_CBC, iv)
+        return base64.b64encode(iv + cipher.encrypt(raw))
+
+    def decrypt(self, to_encrypt: str, secret: str):
+        private_key = hashlib.sha256(secret.encode("utf-8")).digest()
+        enc = base64.b64decode(to_encrypt)
+        iv = enc[:16]
+        cipher = AES.new(private_key, AES.MODE_CBC, iv)
+        return unpad(cipher.decrypt(enc[16:]))
 
     async def create_paste(self,
                            sections: Union[PasteFormat, List[PasteFormat]],
