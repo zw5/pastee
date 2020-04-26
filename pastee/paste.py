@@ -1,21 +1,11 @@
-from typing import Dict, Optional, List, Union
 import aiohttp
 import datetime
 import json
-import base64
-import hashlib
-from Crypto.Cipher import AES
-from Crypto import Random
-
-BLOCK_SIZE = 16
-
-
-def pad(text: str):
-    return text + (BLOCK_SIZE - len(text) % BLOCK_SIZE) * chr(BLOCK_SIZE - len(text) % BLOCK_SIZE) # noqa
-
-
-def unpad(text: str):
-    return text[:-ord(text[len(text) - 1:])]
+from cryptography.fernet import Fernet
+import typing
+from contextlib import asynccontextmanager
+if typing.TYPE_CHECKING:
+    from typing import Dict, Optional, List, Union
 
 
 class MainPaste:
@@ -34,6 +24,7 @@ class MainPaste:
             data["paste"]["expires_at"]
         )
         self._sections = [PasteSection(d) for d in data["paste"]["sections"]]
+        self.key
 
     @property
     def sucess(self):
@@ -119,6 +110,12 @@ class PasteFormat:
     def contents(self):
         return self._contents
 
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return self
+
 
 class Paste:
 
@@ -179,11 +176,15 @@ class PasteResults:
 
 
 class Client:
-    def __init__(self, authorization: str, **kwargs) -> None:
+    def __init__(
+            self, authorization: str, key: Optional[bytes] = None, **kwargs
+            ) -> None:
         self.auth_code: str = authorization
         self.headers: Dict[str, str] = {}
-        self.session: aiohttp.ClientSession = None
+        self.session: Union[aiohttp.ClientSession, None] = None
         self.API_BASE = kwargs.get("API_BASE", "https://api.paste.ee/v1")
+        self.key = key
+        self.fernet, = [Fernet(self.key) if self.key is not None else None]
 
     async def initialize(self) -> None:
         self.session = aiohttp.ClientSession()
@@ -210,23 +211,19 @@ class Client:
 
     async def get_pastes(self, page: int = 1, per_page: int = 25,
                          **params) -> PasteResults:
-        return await PasteResults(
-            self.get(f"/pastes?perpage={per_page}&page={page}", **params)
+        return PasteResults(
+            await self.get(f"/pastes?perpage={per_page}&page={page}", **params)
             )
 
-    def encrypt(self, raw_text: str, secret: str):
-        private_key = hashlib.sha256(secret.encode("utf-8")).digest()
-        raw = pad(raw_text)
-        iv = Random.new().read(AES.block_size)
-        cipher = AES.new(private_key, AES.MODE_CBC, iv)
-        return base64.b64encode(iv + cipher.encrypt(raw))
+    def encrypt(self, raw_text: bytes) -> bytes:
+        if self.key is None:
+            raise RuntimeError("Key not specified at client creation")
+        return self.fernet.encrypt(raw_text)
 
-    def decrypt(self, to_encrypt: str, secret: str):
-        private_key = hashlib.sha256(secret.encode("utf-8")).digest()
-        enc = base64.b64decode(to_encrypt)
-        iv = enc[:16]
-        cipher = AES.new(private_key, AES.MODE_CBC, iv)
-        return unpad(cipher.decrypt(enc[16:]))
+    def decrypt(self, raw_text: bytes) -> bytes:
+        if self.key is None:
+            raise RuntimeError("Key not specified at client creation")
+        return self.fernet.encrypt(raw_text)
 
     async def create_paste(self,
                            sections: Union[PasteFormat, List[PasteFormat]],
@@ -255,3 +252,11 @@ class Client:
     async def delete_paste(self, paste_id: str) -> bool:
         r = await self.delete(f"/pastes/{paste_id}")
         return r["sucess"]
+
+    @asynccontextmanager
+    async def connection(*args, **kwargs):
+        client = Client(*args, **kwargs)
+        try:
+            yield client
+        finally:
+            client.session.close()

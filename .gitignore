@@ -1,3 +1,7 @@
 build
 *.egg*
 dist
+.mypy*
+kk.py
+.vs*
+push.ps1

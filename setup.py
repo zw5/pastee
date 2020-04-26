@@ -35,9 +35,9 @@ class CleanCommand(setuptools.Command):
         pass
 
     def run(self):
-        os.system(r"del dist")
-        os.system(r"del egg-info")
-        os.system(r"del build")
+        os.system(r"rmdir dist -force -r")
+        os.system(r"rmdir egg-info -force -r")
+        os.system(r"rmdir build -force -r")
 
 
 setuptools.setup(
