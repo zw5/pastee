@@ -1,2 +1,2 @@
 aiohttp>=3.3
-cryptography==2.8
+cryptography==3.2
